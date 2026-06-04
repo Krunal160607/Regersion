@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDP Decision Tree FastAPI Project</title>
+    <link rel="stylesheet" href="{{ request.url_for('static', path='style.css') }}">
+</head>
+<body>
+    <div class="page-glow page-glow-left"></div>
+    <div class="page-glow page-glow-right"></div>
+
+    <main class="page">
+        <section class="hero-panel">
+            <div class="hero-copy">
+                <p class="eyebrow">FastAPI / Decision Tree / Colab Sync</p>
+                <h1>GDP Prediction Workspace</h1>
+                <p class="lead">
+                    A cleaner front end for your notebook-based GDP model. The app keeps
+                    the Colab training logic, maps each country into its notebook label,
+                    and returns predictions through FastAPI.
+                </p>
+                <div class="action-row">
+                    <a class="action-link" href="/docs">Open API Docs</a>
+                    <span class="inline-chip">
+                        Active dataset: <strong>{{ status.dataset_name or "None" }}</strong>
+                    </span>
+                </div>
+            </div>
+
+            <aside class="hero-card">
+                <span class="hero-card-label">Model Snapshot</span>
+                <strong class="hero-card-title">Notebook-aligned GDP predictor</strong>
+                <p class="hero-card-copy">
+                    Predictions are generated with the same `Country_Label + Years`
+                    structure used in your Colab notebook.
+                </p>
+                <div class="hero-facts">
+                    <div>
+                        <span>Countries</span>
+                        <strong>{{ status.countries|length }}</strong>
+                    </div>
+                    <div>
+                        <span>Rows</span>
+                        <strong>{{ status.dataset_rows }}</strong>
+                    </div>
+                    <div>
+                        <span>Coverage</span>
+                        <strong>{{ status.year_min }} - {{ status.year_max }}</strong>
+                    </div>
+                    <div>
+                        <span>Status</span>
+                        <strong>{{ "Ready" if status.trained else "Training Needed" }}</strong>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="surface-card stats-card">
+            <div class="section-header">
+                <div>
+                    <p class="section-kicker">System Health</p>
+                    <h2>Project Status</h2>
+                </div>
+                <p class="section-note">{{ status.message }}</p>
+            </div>
+
+            <div class="stats-grid">
+                <article class="stat-tile">
+                    <span>Dataset</span>
+                    <strong>{{ "Ready" if status.dataset_exists else "Missing" }}</strong>
+                    <small>{{ status.dataset_name or "No file detected" }}</small>
+                </article>
+                <article class="stat-tile">
+                    <span>Notebook</span>
+                    <strong>{{ "Connected" if status.notebook_exists else "Missing" }}</strong>
+                    <small>Colab training reference</small>
+                </article>
+                <article class="stat-tile">
+                    <span>Rows</span>
+                    <strong>{{ status.dataset_rows }}</strong>
+                    <small>Available training records</small>
+                </article>
+                <article class="stat-tile">
+                    <span>Countries</span>
+                    <strong>{{ status.countries|length }}</strong>
+                    <small>Label-encoded entries</small>
+                </article>
+                <article class="stat-tile">
+                    <span>Year Range</span>
+                    <strong>{{ status.year_min }} - {{ status.year_max }}</strong>
+                    <small>Detected in the dataset</small>
+                </article>
+                <article class="stat-tile">
+                    <span>Model</span>
+                    <strong>{{ "Ready" if status.trained else "Pending" }}</strong>
+                    <small>Decision tree regressor</small>
+                </article>
+            </div>
+        </section>
+
+        <section class="surface-card workbench">
+            <div class="section-header">
+                <div>
+                    <p class="section-kicker">Prediction Studio</p>
+                    <h2>Run a GDP Forecast</h2>
+                </div>
+                <p class="section-note">
+                    Future years are allowed. The app still maps the country to the
+                    same notebook label before prediction.
+                </p>
+            </div>
+
+            {% if countries %}
+            <div class="prediction-shell">
+                <form class="prediction-form" data-api-url="/api/predict">
+                    <label class="field">
+                        <div class="field-head">
+                            <span>Country</span>
+                            <span id="country-label-badge" class="field-badge">
+                                Label {{ country_to_label.get(countries[0]) }}
+                            </span>
+                        </div>
+                        <select name="country_name" required>
+                            {% for country in countries %}
+                            <option
+                                value="{{ country }}"
+                                data-label="{{ country_to_label.get(country) }}"
+                            >
+                                {{ country }} (Label {{ country_to_label.get(country) }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="field-note">
+                            The selected country is converted into the notebook’s
+                            numeric label automatically.
+                        </small>
+                    </label>
+
+                    <div class="form-grid">
+                        <label class="field">
+                            <div class="field-head">
+                                <span>Year</span>
+                                <span class="field-badge">From {{ status.year_min }}</span>
+                            </div>
+                            <input
+                                type="number"
+                                name="year"
+                                {% if status.year_min is not none %}min="{{ status.year_min }}"{% endif %}
+                                {% if default_year != "" %}value="{{ default_year }}"{% endif %}
+                                placeholder="{{ default_year or 'Enter a year' }}"
+                                required
+                            >
+                            <small class="field-note">
+                                Historical data starts at {{ status.year_min }}. You can
+                                also test future years such as 2025 or beyond.
+                            </small>
+                        </label>
+
+                        <div class="insight-card">
+                            <span class="insight-kicker">Input Summary</span>
+                            <div class="insight-row">
+                                <span>Country label</span>
+                                <strong id="country-label-preview">{{ country_to_label.get(countries[0]) }}</strong>
+                            </div>
+                            <div class="insight-row">
+                                <span>Model type</span>
+                                <strong>Decision Tree</strong>
+                            </div>
+                            <div class="insight-row">
+                                <span>Training range</span>
+                                <strong>{{ status.year_min }} - {{ status.year_max }}</strong>
+                            </div>
+                            <div class="insight-row">
+                                <span>API route</span>
+                                <strong>`POST /api/predict`</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit">Predict GDP</button>
+                        <p class="form-caption">
+                            Response includes country name, label, code, year, and the
+                            predicted GDP value.
+                        </p>
+                    </div>
+                </form>
+
+                <aside class="side-panel">
+                    <div id="result" class="result hidden"></div>
+                    <div id="error" class="error hidden"></div>
+
+                    <div class="api-card">
+                        <span class="api-card-label">Example Payload</span>
+                        <pre>{
+  "country_name": "India",
+  "year": 2025
+}</pre>
+                    </div>
+                </aside>
+            </div>
+            {% else %}
+            <p class="note">
+                Add or format the dataset first so country and year inputs can be loaded.
+            </p>
+            {% endif %}
+        </section>
+    </main>
+
+    <script src="{{ request.url_for('static', path='script.js') }}"></script>
+</body>
+</html>
